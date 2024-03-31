@@ -5,14 +5,20 @@
 #include <termios.h>
 #include <time.h>
 
+#define HEIGHT 10
+#define WIDTH 10
+
 typedef struct {
     int score;
     int level;
+    int immunity;
 } scoreboard;
 
 typedef struct {
     int pos_x;
     int pos_y;
+    int is_immune;
+    int is_active;
 } entity;  // Can be used for both player and ghost
 
 scoreboard* create_scoreboard(void) {
@@ -20,6 +26,7 @@ scoreboard* create_scoreboard(void) {
     if (sb != NULL) {
         sb->score = 0;
         sb->level = 1;
+        sb->immunity = 1;
     }
     return sb;
 }
@@ -29,17 +36,19 @@ entity* create_entity(int x, int y) {
     if (e != NULL) {
         e->pos_x = x;
         e->pos_y = y;
+        e->is_immune = 0;
+        e->is_active = 1;
     }
     return e;
 }
 
-void set_point_map(int map[10][10]) {
+void set_point_map(int map[HEIGHT][WIDTH]) {
     int i, j;
     int num_big_points = 5;
     srand(time(NULL)); 
 
-    for (i = 0; i < 10; i++) {
-        for (j = 0; j < 10; j++) {
+    for (i = 0; i < HEIGHT; i++) {
+        for (j = 0; j < WIDTH; j++) {
             if (map[i][j] == 0) {
                 map[i][j] = 2;
             }
@@ -55,11 +64,11 @@ void set_point_map(int map[10][10]) {
     }
 }
 
-void print_map(int map[10][10], entity *player, entity *ghost) {
+void print_map(int map[HEIGHT][WIDTH], entity *player, entity *ghost) {
     // Modify to also print the ghost
-    for (int i = 0; i < 10; i++) {
-        for (int j = 0; j < 10; j++) {
-            if (i == ghost->pos_x && j == ghost->pos_y) {
+    for (int i = 0; i < HEIGHT; i++) {
+        for (int j = 0; j < WIDTH; j++) {
+            if (i == ghost->pos_x && j == ghost->pos_y && ghost->is_active) {
                 printf("G ");
             } else if (i == player->pos_x && j == player->pos_y) {
                 printf("C ");
@@ -80,6 +89,7 @@ void print_map(int map[10][10], entity *player, entity *ghost) {
 void print_score_board(scoreboard *scoreboard) {
     printf("LEVEL: %d\n", scoreboard->level);
     printf("SCORE: %d\n", scoreboard->score);
+    printf("IMMUNITY: %d\n", scoreboard->immunity);
 }
 
 void set_noncanonical_mode() {
@@ -100,7 +110,6 @@ void set_canonical_mode() {
 }
 
 void move_entity(entity *ent, int map[10][10], char direction) {
-    // Generalized function for moving player or ghost
     int next_x = ent->pos_x;
     int next_y = ent->pos_y;
 
@@ -111,7 +120,7 @@ void move_entity(entity *ent, int map[10][10], char direction) {
         case 'd': next_y++; break;
     }
 
-    if (next_x >= 0 && next_x < 10 && next_y >= 0 && next_y < 10 && map[next_x][next_y] != 1) {
+    if (next_x >= 0 && next_x < WIDTH && next_y >= 0 && next_y < HEIGHT && map[next_x][next_y] != 1) {
         ent->pos_x = next_x;
         ent->pos_y = next_y;
     }
@@ -146,6 +155,8 @@ void move_player(entity *player, int map[10][10], char direction, scoreboard *sc
                 map[next_x][next_y] = 0; 
                 scoreboard->score++;
                 scoreboard->score++;
+                scoreboard->immunity+=5;
+
             }
         }
             
@@ -170,10 +181,11 @@ int check_collision(entity *player, entity *ghost) {
 }
 
 int main() {
+    int seconds;
     char c, lastDirection;
     entity *player, *ghost;
     scoreboard *scoreboard;
-    int map[10][10] = {
+    int map[HEIGHT][WIDTH] = {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
         {1, 0, 0, 0, 1, 0, 0, 0, 0, 1},
         {1, 0, 1, 0, 1, 0, 1, 1, 0, 1},
@@ -186,6 +198,7 @@ int main() {
         {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
     };
 
+    seconds = 0;
     srand(time(NULL));
     set_point_map(map);
     player = create_entity(1, 1); // Starting position of player
@@ -210,15 +223,29 @@ int main() {
                 lastDirection = c;
             }
         }
-        move_player(player, map, lastDirection, scoreboard);
-        move_entity(ghost, map, get_random_direction());
+
         system("clear");
         print_score_board(scoreboard);
         print_map(map, player, ghost);
-        if (check_collision(player, ghost)) {
-            printf("Game Over! The ghost got you!\n");
-            break;
+        move_player(player, map, lastDirection, scoreboard);
+        move_entity(ghost, map, get_random_direction());
+        if (check_collision(player, ghost) && ghost->is_active) {
+            /*printf("Game Over! The ghost got you!\n");
+            break;*/
+            if (scoreboard->immunity == 0) {
+                printf("Game Over! The ghost got you!\n");
+                break;
+            } else {
+                ghost->is_active = 0;
+                scoreboard->score+=10;
+                //scoreboard->immunity--;
+            }
         }
+        seconds++;
+        if (seconds > 4 && scoreboard->immunity > 0) {
+            scoreboard->immunity--;
+            seconds = 0;
+        }        
         usleep(200000); // Adjust for game speed
     }
 
