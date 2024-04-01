@@ -15,13 +15,14 @@ typedef struct {
     int max_score;
     int score;
     int level;
+    int immunity;
 } scoreboard;
 
 typedef struct{
-    
     int pos_x;
     int pos_y;
-} player;
+    int is_active;
+} entity;
 
 typedef enum {
     Menu,
@@ -32,7 +33,8 @@ typedef enum {
 
 typedef struct {
     GameState currentGameState;
-    player *player;
+    entity *player;
+    entity *ghost;
     scoreboard *scoreboard;
     int map[GRIDSIZE][GRIDSIZE];
 } GameStateFsm;
@@ -42,22 +44,24 @@ scoreboard* create_scoreboard(void) {
     if (sb != NULL) {
         sb->score = 0;
         sb->level = 1;
+        sb->immunity = 0;
     }
     return sb;
 }
 
-player* create_player(int x, int y){
-    player *player = malloc(sizeof(player)); 
-    if (player != NULL) {
-        player->pos_x = x;
-        player->pos_y = y;
+entity* create_entity(int x, int y) {
+    entity *e = malloc(sizeof(entity));
+    if (e != NULL) {
+        e->pos_x = x;
+        e->pos_y = y;
+        e->is_active = 1;
     }
-    return player;
+    return e;
 }
 
 void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
     int i, j;
-    int num_big_points = 5;
+    int num_big_points = 10;
     int count = 0;
     for (i = 0; i < GRIDSIZE; i++) {
         map[i][0] = 1; 
@@ -101,11 +105,13 @@ void set_teleportation_points(int map[GRIDSIZE][GRIDSIZE]) {
     map[7][7] = 4; 
 }
 
-void print_map(int map[GRIDSIZE][GRIDSIZE], player *player) {
+void print_map(int map[GRIDSIZE][GRIDSIZE], entity *player, entity *ghost) {
     int i, j;
     for (i = 0; i < GRIDSIZE; i++) {
         for (j = 0; j < GRIDSIZE; j++) {
-            if (i == player->pos_x && j == player->pos_y) {
+            if (i == ghost->pos_x && j == ghost->pos_y && ghost->is_active) {
+                printf("G ");
+            } else if (i == player->pos_x && j == player->pos_y) {
                 printf("C ");
             } else if (map[i][j] == 1) {
                 printf("# "); 
@@ -126,9 +132,36 @@ void print_map(int map[GRIDSIZE][GRIDSIZE], player *player) {
 void print_score_board(scoreboard *scoreboard) {
     printf("LEVEL: %d\n", scoreboard->level);
     printf("SCORE: %d\n", scoreboard->score);
+    printf("MAX SCORE: %d\n", scoreboard->max_score);
+    printf("IMMUNITY: %d\n", scoreboard->immunity);
 }
 
-void move_player(player *player, int map[GRIDSIZE][GRIDSIZE], char direction, scoreboard *scoreboard) {
+void move_entity(entity *ent, int map[GRIDSIZE][GRIDSIZE], char direction) {
+    int next_x, next_y;
+    next_x = ent->pos_x;
+    next_y = ent->pos_y;
+    switch (direction) {
+        case 'w': 
+            next_x--;
+            break;
+        case 's': 
+            next_x++;
+            break;
+        case 'a': 
+            next_y--;
+            break;
+        case 'd':
+            next_y++;
+            break;
+    }
+
+    if (next_x >= 0 && next_x < GRIDSIZE && next_y >= 0 && next_y < GRIDSIZE && map[next_x][next_y] != 1) {
+        ent->pos_x = next_x;
+        ent->pos_y = next_y;
+    }
+}
+
+void move_player(entity *player, int map[GRIDSIZE][GRIDSIZE], char direction, scoreboard *scoreboard) {
     int next_x,next_y;
 
     next_x = player->pos_x, next_y = player->pos_y;
@@ -158,6 +191,7 @@ void move_player(player *player, int map[GRIDSIZE][GRIDSIZE], char direction, sc
                 map[next_x][next_y] = 0; 
                 scoreboard->score++;
                 scoreboard->score++;
+                scoreboard->immunity+=5;
             }
             else if (map[next_x][next_y] == 4) {
             if (next_x == 2 && next_y == 2) {
@@ -174,6 +208,24 @@ void move_player(player *player, int map[GRIDSIZE][GRIDSIZE], char direction, sc
 
 }
 
+char get_random_direction() {
+    int randDir = rand() % 4;
+    switch (randDir) {
+        case 0: return 'w';
+        case 1: return 's';
+        case 2: return 'a';
+        case 3: return 'd';
+    }
+    return 'w';
+}
+
+int check_collision(entity *player, entity *ghost) {
+    if (player->pos_x == ghost->pos_x && player->pos_y == ghost->pos_y) {
+        return 1;
+    }
+    return 0;
+}
+
 int all_points_eaten(int map[GRIDSIZE][GRIDSIZE]) {
     int i,j;
     for (i = 0; i < GRIDSIZE; i++) {
@@ -184,34 +236,64 @@ int all_points_eaten(int map[GRIDSIZE][GRIDSIZE]) {
         }
     }
     return 1; 
- }
+}
 
 void handleMenuState(GameStateFsm *fsm, char input) {
     if (input == '\n') {
         fsm->currentGameState = Playing;
         system("clear");
     }
+    /*
+        1. can add case to quit from menu
+        2. can add option to reset data file, clear max score, etc.    
+    */
 }
 
 void handlePlayingState(GameStateFsm *fsm, char input) {
+
+
     if (input == 'q') {
         fsm->currentGameState = End;
     } else if (input == ' ') {
         fsm->currentGameState = Paused;
         printf("Game Paused. Press Spacebar to resume...\n");
-    } else {
+    } else if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
         move_player(fsm->player, fsm->map, input, fsm->scoreboard);
-        if (all_points_eaten(fsm->map)) {
-            // fsm->currentGameState = End;
-            
-            // printf("\nGame Over!\nCongratulations, you've eaten all the points!\n");
-            set_point_map(fsm->map, fsm->scoreboard);
-            fsm->player->pos_x = 1;
-            fsm->player->pos_y = 1;
-            
+    }
+/*
+    if (count++ >= ghost_move_interval) {
+        move_entity(fsm->ghost, fsm->map, get_random_direction());
+        count = 0;
+        if (fsm->scoreboard->immunity > 0) {
+            fsm->scoreboard->immunity--;
         }
     }
+*/
+    if (check_collision(fsm->player, fsm->ghost)) {
+        if (fsm->scoreboard->immunity == 0 && fsm->ghost->is_active) {
+            fsm->currentGameState = End;
+            printf("\nGame Over!\nYou've been caught by the ghost!\n");
+        } else {
+            fsm->ghost->is_active = 0;
+            fsm->scoreboard->score += 10;
+        }
+    }
+
+    if (all_points_eaten(fsm->map)) {
+        // fsm->currentGameState = End;
+            
+         // printf("\nGame Over!\nCongratulations, you've eaten all the points!\n");
+        set_point_map(fsm->map, fsm->scoreboard);
+        fsm->player->pos_x = 1;
+        fsm->player->pos_y = 1;
+       
+        fsm->ghost->pos_x = 8;
+        fsm->ghost->pos_y = 8;
+        fsm->scoreboard->level++;
+        fsm->ghost->is_active = 1;
+    }
 }
+
 
 
 void handlePausedState(GameStateFsm *fsm, char input) {
@@ -225,7 +307,8 @@ void initGameStateFsm(GameStateFsm *fsm) {
     fsm->currentGameState = Menu;
     fsm->scoreboard = create_scoreboard();
     set_point_map(fsm->map,fsm->scoreboard);
-    fsm->player = create_player(1, 1);
+    fsm->player = create_entity(1, 1);
+    fsm->ghost = create_entity(8, 8);
     set_teleportation_points(fsm->map);
 }
 
@@ -293,6 +376,8 @@ void bubbleSort(struct Entry arr[], int n) {
 }
 
 int main() {
+    static int counter = 0;
+    int ghost_move_interval = 5;
     char username[50];
     printf("Enter a username:\n");
     scanf("%s", username);
@@ -350,9 +435,15 @@ int main() {
         if (fsm.currentGameState == Playing) {
             system("clear");
             print_score_board(fsm.scoreboard);
-            print_map(fsm.map, fsm.player);
+            print_map(fsm.map, fsm.player, fsm.ghost);
         }
-
+        if (counter++ >= ghost_move_interval) {
+            move_entity(fsm.ghost, fsm.map, get_random_direction());
+            counter = 0;
+            if (fsm.scoreboard->immunity > 0) {
+                fsm.scoreboard->immunity--;
+            }
+        }
        sleep_microseconds(100000);
     }
 
