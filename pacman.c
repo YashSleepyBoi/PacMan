@@ -28,6 +28,7 @@ typedef enum {
     Menu,
     Playing,
     Paused,
+    GameOver,
     End
 } GameState;
 
@@ -238,20 +239,28 @@ int all_points_eaten(int map[GRIDSIZE][GRIDSIZE]) {
     return 1; 
 }
 
+void initGameStateFsm(GameStateFsm *fsm) {
+    fsm->currentGameState = Menu;
+    fsm->scoreboard = create_scoreboard();
+    set_point_map(fsm->map,fsm->scoreboard);
+    fsm->player = create_entity(1, 1);
+    fsm->ghost = create_entity(8, 8);
+    set_teleportation_points(fsm->map);
+}
+
 void handleMenuState(GameStateFsm *fsm, char input) {
     if (input == '\n') {
         fsm->currentGameState = Playing;
         system("clear");
+    }else if (input == 'q'){
+        fsm->currentGameState = End;
     }
     /*
         1. can add case to quit from menu
         2. can add option to reset data file, clear max score, etc.    
     */
 }
-
 void handlePlayingState(GameStateFsm *fsm, char input) {
-
-
     if (input == 'q') {
         fsm->currentGameState = End;
     } else if (input == ' ') {
@@ -260,19 +269,13 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
     } else if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
         move_player(fsm->player, fsm->map, input, fsm->scoreboard);
     }
-/*
-    if (count++ >= ghost_move_interval) {
-        move_entity(fsm->ghost, fsm->map, get_random_direction());
-        count = 0;
-        if (fsm->scoreboard->immunity > 0) {
-            fsm->scoreboard->immunity--;
-        }
-    }
-*/
+
     if (check_collision(fsm->player, fsm->ghost)) {
         if (fsm->scoreboard->immunity == 0 && fsm->ghost->is_active) {
-            fsm->currentGameState = End;
-            printf("\nGame Over!\nYou've been caught by the ghost!\n");
+            printf("\nGame Over! You've been caught by the ghost!\n");
+            printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
+            fsm->currentGameState = GameOver;
+
         } else {
             fsm->ghost->is_active = 0;
             fsm->scoreboard->score += 10;
@@ -295,6 +298,15 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
 }
 
 
+/*
+    if (count++ >= ghost_move_interval) {
+        move_entity(fsm->ghost, fsm->map, get_random_direction());
+        count = 0;
+        if (fsm->scoreboard->immunity > 0) {
+            fsm->scoreboard->immunity--;
+        }
+    }
+*/
 
 void handlePausedState(GameStateFsm *fsm, char input) {
     if (input == ' ') {
@@ -303,35 +315,38 @@ void handlePausedState(GameStateFsm *fsm, char input) {
     }
 }
 
-void initGameStateFsm(GameStateFsm *fsm) {
-    fsm->currentGameState = Menu;
-    fsm->scoreboard = create_scoreboard();
-    set_point_map(fsm->map,fsm->scoreboard);
-    fsm->player = create_entity(1, 1);
-    fsm->ghost = create_entity(8, 8);
-    set_teleportation_points(fsm->map);
-}
-
-void processGameState(GameStateFsm *fsm, char input) {
-    switch (fsm->currentGameState) {
-        case Menu:
-            handleMenuState(fsm, input);
-            break;
-        case Playing:
-            handlePlayingState(fsm, input);
-            break;
-        case Paused:
-            handlePausedState(fsm, input);
-            break;
-        case End:
-            break;
+void handleGameOverState(GameStateFsm *fsm, char input) {
+    if (input == 'y' || input == 'Y') {
+        initGameStateFsm(fsm); 
+        fsm->currentGameState = Playing; 
+    } else if(input == 'x' || input =='X'){
+        fsm->currentGameState = End;
     }
 }
 
+void processGameState(GameStateFsm *fsm, char input) {
+        switch (fsm->currentGameState) {
+            case Menu:
+                handleMenuState(fsm, input);
+                break;
+            case Playing:
+                handlePlayingState(fsm, input);
+                break;
+            case Paused:
+                handlePausedState(fsm, input);
+                break;
+            case GameOver:
+                handleGameOverState(fsm,input);
+            case End:
+                break;
+        }
+    }
+
+
 void sleep_microseconds(long microseconds) {
     struct timespec ts;
-    ts.tv_sec = microseconds / 1000000;
-    ts.tv_nsec = (microseconds % 1000000) * 1000;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 50000000; // 50 milliseconds
     nanosleep(&ts, NULL);
 }
 
@@ -350,8 +365,6 @@ void set_canonical_mode() {
     term.c_lflag |= (ICANON | ECHO); 
     tcsetattr(STDIN_FILENO, TCSANOW, &term);
 }
-
-
 
 struct Entry {
     char username[MAX_NAME_LENGTH];
@@ -417,7 +430,7 @@ int main() {
     printf("Welcome to C-man %s\n",username);
     printf("Play with ONLY W, A, S, D\n");
     printf("Press Enter to start the game...\n");
-    printf("Press Spacerbar to pause and resume the game...\n");
+    printf("Press Spacebar to pause and resume the game...\n");
     printf("Press q to quit the game...\n");
     printf("Scoreboard: \n");
     for (int i = 0; i < NUM_LINES_TO_READ; i++) {
@@ -436,6 +449,8 @@ int main() {
             system("clear");
             print_score_board(fsm.scoreboard);
             print_map(fsm.map, fsm.player, fsm.ghost);
+        } else if (fsm.currentGameState == GameOver){
+            handleGameOverState(&fsm,input);
         }
         if (counter++ >= ghost_move_interval) {
             move_entity(fsm.ghost, fsm.map, get_random_direction());
