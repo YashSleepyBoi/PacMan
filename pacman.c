@@ -1,52 +1,25 @@
+#include "pacman.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <termios.h>
 #include <time.h>
-#define GRIDSIZE 15
-#define MAX_LINE_LENGTH 1024
-#define NUM_LINES_TO_READ 3
-#define MAX_ENTRIES 1000
-#define MAX_NAME_LENGTH 50
-#define NUM_GHOSTS 4
 
-
-typedef struct {
-    int max_score;
-    int score;
-    int level;
-    int immunity;
-} scoreboard;
-
-typedef struct{
-    int pos_x;
-    int pos_y;
-    int is_active;
-} entity;
-
-typedef enum {
-    Menu,
-    Playing,
-    Paused,
-    GameOver,
-    End
-} GameState;
-
-typedef struct {
-    GameState currentGameState;
-    entity *player;
-    entity **ghosts;
-    scoreboard *scoreboard;
-    int map[GRIDSIZE][GRIDSIZE];
-} GameStateFsm;
+void initCMan(C_man_FSM *fsm) {
+    fsm->currentState = NORMAL_MODE;
+    fsm->immuneSteps = 5;
+}
 
 scoreboard* create_scoreboard(void) {
     scoreboard* sb = malloc(sizeof(scoreboard)); 
     if (sb != NULL) {
         sb->score = 0;
         sb->level = 1;
-        sb->immunity = 0;
+        sb->immunity = malloc(sizeof(C_man_FSM)); 
+        if (sb->immunity != NULL) {
+            initCMan(sb->immunity); 
+        }
     }
     return sb;
 }
@@ -73,7 +46,7 @@ entity** create_ghosts() {
 
 void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
     int i, j;
-    int num_big_points = 10;
+    int num_big_points = 8;
     int count = 0;
     for (i = 0; i < GRIDSIZE; i++) {
         map[i][0] = 1; 
@@ -87,7 +60,6 @@ void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
         for (j = 1; j < GRIDSIZE-1; j++) {
             if(i==1 && j==1){
                continue;
-               
             }
             int random_num = rand() % 10;
             // Assign 1 to approximately 20% of the cells
@@ -148,7 +120,7 @@ void print_score_board(scoreboard *scoreboard) {
     printf("LEVEL: %d\n", scoreboard->level);
     printf("SCORE: %d\n", scoreboard->score);
     printf("MAX SCORE: %d\n", scoreboard->max_score);
-    printf("IMMUNITY: %d\n", scoreboard->immunity);
+    printf("IMMUNITY: %d\n", scoreboard->immunity->immuneSteps);
 }
 
 void move_entity(entity *ent, int map[GRIDSIZE][GRIDSIZE], char direction) {
@@ -194,28 +166,28 @@ void move_player(entity *player, int map[GRIDSIZE][GRIDSIZE], char direction, sc
             next_y++;
             break;
     }
-
     
     if (next_x >= 0 && next_x < GRIDSIZE && next_y >= 0 && next_y < GRIDSIZE && map[next_x][next_y] != 1) {
-        if (map[next_x][next_y] != 1) { 
             if (map[next_x][next_y] == 2) {
                 map[next_x][next_y] = 0; 
                 scoreboard->score++;
-            }
-            else if (map[next_x][next_y] == 3) {
+                scoreboard->immunity->immuneSteps--;  
+            } else if (map[next_x][next_y] == 3) {
                 map[next_x][next_y] = 0; 
                 scoreboard->score++;
                 scoreboard->score++;
-                scoreboard->immunity+=5;
-            }
-            else if (map[next_x][next_y] == 4) {
-            if (next_x == 2 && next_y == 2) {
-                next_x = 7; next_y = 7; 
-            } else if (next_x == 7 && next_y == 7) {
-                next_x = 2; next_y = 2; 
-            }
-        }
-        }
+                scoreboard->immunity->immuneSteps += 5;
+                scoreboard->immunity->currentState = POWER_MODE;
+            } else if (map[next_x][next_y] == 4) {
+                if (next_x == 2 && next_y == 2) {
+                    next_x = 7; next_y = 7; 
+                } else if (next_x == 7 && next_y == 7) {
+                    next_x = 2; next_y = 2; 
+                }
+                scoreboard->immunity->immuneSteps--;  
+            } else {
+                scoreboard->immunity->immuneSteps--;  
+            } 
         
         player->pos_x = next_x;
         player->pos_y = next_y;
@@ -253,6 +225,14 @@ int all_points_eaten(int map[GRIDSIZE][GRIDSIZE]) {
     return 1; 
 }
 
+void handleCManState(GameStateFsm *fsm) {
+    if (fsm->scoreboard->immunity->currentState == POWER_MODE && fsm->scoreboard->immunity->immuneSteps == 0) {  
+        fsm->scoreboard->immunity->currentState = NORMAL_MODE;  
+    } else if (fsm->scoreboard->immunity->currentState == NORMAL_MODE && fsm->scoreboard->immunity->immuneSteps < 0){
+        fsm->scoreboard->immunity->immuneSteps = 0;
+    }
+}
+
 void initGameStateFsm(GameStateFsm *fsm) {
     fsm->currentGameState = Menu;
     fsm->scoreboard = create_scoreboard();
@@ -276,6 +256,8 @@ void handleMenuState(GameStateFsm *fsm, char input) {
 }
 void handlePlayingState(GameStateFsm *fsm, char input) {
     int i;
+    
+
     if (input == 'q') {
         fsm->currentGameState = End;
     } else if (input == ' ') {
@@ -284,9 +266,11 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
     } else if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
         move_player(fsm->player, fsm->map, input, fsm->scoreboard);
     }
+
+    handleCManState(fsm);
     for (i = 0; i < NUM_GHOSTS; i++) {
         if (check_collision(fsm->player, fsm->ghosts[i])) {
-            if (fsm->scoreboard->immunity == 0 && fsm->ghosts[i]->is_active) {
+            if (fsm->scoreboard->immunity->currentState == NORMAL_MODE && fsm->ghosts[i]->is_active) {
                 printf("\nGame Over! You've been caught by the ghost!\n");
                 printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
                 fsm->currentGameState = GameOver;
@@ -362,22 +346,22 @@ void handleGameOverState(GameStateFsm *fsm, char input) {
 }
 
 void processGameState(GameStateFsm *fsm, char input) {
-        switch (fsm->currentGameState) {
-            case Menu:
-                handleMenuState(fsm, input);
-                break;
-            case Playing:
-                handlePlayingState(fsm, input);
-                break;
-            case Paused:
-                handlePausedState(fsm, input);
-                break;
-            case GameOver:
-                handleGameOverState(fsm,input);
-            case End:
-                break;
-        }
+    switch (fsm->currentGameState) {
+        case Menu:
+            handleMenuState(fsm, input);
+            break;
+        case Playing:
+            handlePlayingState(fsm, input);
+            break;
+        case Paused:
+            handlePausedState(fsm, input);
+            break;
+        case GameOver:
+            handleGameOverState(fsm,input);
+        case End:
+            break;
     }
+}
 
 
 void sleep_microseconds(long microseconds) {
@@ -434,8 +418,7 @@ void free_ghosts(entity **ghosts) {
 
 int main() {
     static int counter = 0;
-    static int immunity = 0;
-    int immunity_counter = 5;
+    // int immunity_counter = 5;
     int ghost_move_interval = 3;
 
     char username[50];
@@ -509,12 +492,12 @@ int main() {
         }
 
 
-        if (immunity++ >= immunity_counter) {
-            immunity = 0;
-            if (fsm.scoreboard->immunity > 0) {
-                fsm.scoreboard->immunity--;
-            }
-        }
+        // if (immunity++ >= immunity_counter) {
+        //     immunity = 0;
+        //     if (fsm.scoreboard->immunity > 0) {
+        //         fsm.scoreboard->immunity--;
+        //     }
+        // }
 
 
        sleep_microseconds(100000);
@@ -526,6 +509,7 @@ int main() {
 
     printf("Data written successfully to data.csv\n");
     free(fsm.player);
+    free(fsm.scoreboard->immunity);
     free(fsm.scoreboard);
     free_ghosts(fsm.ghosts);
 
