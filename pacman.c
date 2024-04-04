@@ -9,6 +9,7 @@
 #define NUM_LINES_TO_READ 3
 #define MAX_ENTRIES 1000
 #define MAX_NAME_LENGTH 50
+#define NUM_GHOSTS 4
 
 
 typedef struct {
@@ -35,7 +36,7 @@ typedef enum {
 typedef struct {
     GameState currentGameState;
     entity *player;
-    entity *ghost;
+    entity **ghosts;
     scoreboard *scoreboard;
     int map[GRIDSIZE][GRIDSIZE];
 } GameStateFsm;
@@ -58,6 +59,16 @@ entity* create_entity(int x, int y) {
         e->is_active = 1;
     }
     return e;
+}
+
+entity** create_ghosts() {
+    entity **ghosts = malloc(NUM_GHOSTS * sizeof(entity*));
+    if (ghosts != NULL) {
+        for (int i = 0; i < NUM_GHOSTS; i++) {
+            ghosts[i] = create_entity(8, 8);
+        }
+    }
+    return ghosts;
 }
 
 void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
@@ -106,11 +117,14 @@ void set_teleportation_points(int map[GRIDSIZE][GRIDSIZE]) {
     map[7][7] = 4; 
 }
 
-void print_map(int map[GRIDSIZE][GRIDSIZE], entity *player, entity *ghost) {
-    int i, j;
+void print_map(int map[GRIDSIZE][GRIDSIZE], entity *player, entity **ghosts) {
+    int i, j, k;
     for (i = 0; i < GRIDSIZE; i++) {
         for (j = 0; j < GRIDSIZE; j++) {
-            if (i == ghost->pos_x && j == ghost->pos_y && ghost->is_active) {
+            if ((i == ghosts[0]->pos_x && j == ghosts[0]->pos_y && ghosts[0]->is_active) ||
+                (i == ghosts[1]->pos_x && j == ghosts[1]->pos_y && ghosts[1]->is_active) ||
+                (i == ghosts[2]->pos_x && j == ghosts[2]->pos_y && ghosts[2]->is_active) ||
+                (i == ghosts[3]->pos_x && j == ghosts[3]->pos_y && ghosts[3]->is_active)) {
                 printf("G ");
             } else if (i == player->pos_x && j == player->pos_y) {
                 printf("C ");
@@ -244,7 +258,7 @@ void initGameStateFsm(GameStateFsm *fsm) {
     fsm->scoreboard = create_scoreboard();
     set_point_map(fsm->map,fsm->scoreboard);
     fsm->player = create_entity(1, 1);
-    fsm->ghost = create_entity(8, 8);
+    fsm->ghosts = create_ghosts();
     set_teleportation_points(fsm->map);
 }
 
@@ -261,6 +275,7 @@ void handleMenuState(GameStateFsm *fsm, char input) {
     */
 }
 void handlePlayingState(GameStateFsm *fsm, char input) {
+    int i;
     if (input == 'q') {
         fsm->currentGameState = End;
     } else if (input == ' ') {
@@ -269,7 +284,21 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
     } else if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
         move_player(fsm->player, fsm->map, input, fsm->scoreboard);
     }
-
+    for (i = 0; i < NUM_GHOSTS; i++) {
+        if (check_collision(fsm->player, fsm->ghosts[i])) {
+            if (fsm->scoreboard->immunity == 0 && fsm->ghosts[i]->is_active) {
+                printf("\nGame Over! You've been caught by the ghost!\n");
+                printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
+                fsm->currentGameState = GameOver;
+                break;
+            } else {
+                fsm->ghosts[i]->is_active = 0;
+                fsm->scoreboard->score += 10;
+            }
+        }
+    }
+        
+/*    
     if (check_collision(fsm->player, fsm->ghost)) {
         if (fsm->scoreboard->immunity == 0 && fsm->ghost->is_active) {
             printf("\nGame Over! You've been caught by the ghost!\n");
@@ -281,6 +310,7 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
             fsm->scoreboard->score += 10;
         }
     }
+*/
 
     if (all_points_eaten(fsm->map)) {
         // fsm->currentGameState = End;
@@ -289,11 +319,18 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
         set_point_map(fsm->map, fsm->scoreboard);
         fsm->player->pos_x = 1;
         fsm->player->pos_y = 1;
-       
+        fsm->scoreboard->level++;
+
+        for (i = 0; i < NUM_GHOSTS; i++) {
+            fsm->ghosts[i]->pos_x = 8;
+            fsm->ghosts[i]->pos_y = 8;
+            fsm->ghosts[i]->is_active = 1;
+        }
+/*
         fsm->ghost->pos_x = 8;
         fsm->ghost->pos_y = 8;
-        fsm->scoreboard->level++;
         fsm->ghost->is_active = 1;
+*/
     }
 }
 
@@ -388,9 +425,19 @@ void bubbleSort(struct Entry arr[], int n) {
     }
 }
 
+void free_ghosts(entity **ghosts) {
+    for (int i = 0; i < NUM_GHOSTS; i++) {
+        free(ghosts[i]);
+    }
+    free(ghosts);
+}
+
 int main() {
     static int counter = 0;
-    int ghost_move_interval = 5;
+    static int immunity = 0;
+    int immunity_counter = 5;
+    int ghost_move_interval = 3;
+
     char username[50];
     printf("Enter a username:\n");
     scanf("%s", username);
@@ -422,6 +469,7 @@ int main() {
 
     GameStateFsm fsm;
     char input;
+    int i;
     initGameStateFsm(&fsm);
     
     
@@ -448,17 +496,27 @@ int main() {
         if (fsm.currentGameState == Playing) {
             system("clear");
             print_score_board(fsm.scoreboard);
-            print_map(fsm.map, fsm.player, fsm.ghost);
+            print_map(fsm.map, fsm.player, fsm.ghosts);
         } else if (fsm.currentGameState == GameOver){
             handleGameOverState(&fsm,input);
         }
+
         if (counter++ >= ghost_move_interval) {
-            move_entity(fsm.ghost, fsm.map, get_random_direction());
+            for (i = 0; i < NUM_GHOSTS; i++) {
+                move_entity(fsm.ghosts[i], fsm.map, get_random_direction());    
+            }
             counter = 0;
+        }
+
+
+        if (immunity++ >= immunity_counter) {
+            immunity = 0;
             if (fsm.scoreboard->immunity > 0) {
                 fsm.scoreboard->immunity--;
             }
         }
+
+
        sleep_microseconds(100000);
     }
 
@@ -469,6 +527,7 @@ int main() {
     printf("Data written successfully to data.csv\n");
     free(fsm.player);
     free(fsm.scoreboard);
+    free_ghosts(fsm.ghosts);
 
     return 0;
 }
