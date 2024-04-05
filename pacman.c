@@ -48,29 +48,38 @@ void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
     int i, j;
     int num_big_points = 8;
     int count = 0;
-    for (i = 0; i < GRIDSIZE; i++) {
-        map[i][0] = 1; 
-        map[i][GRIDSIZE-1] = 1; 
-        map[0][i] = 1; 
-        map[GRIDSIZE-1][i] = 1; 
-    }
+ 
     
-
+     for (i = 0; i < GRIDSIZE; i++) {
+        for (j = 0; j < GRIDSIZE; j++) {
+            map[i][j] = 1;
+        }
+     }
     for (i = 1; i < GRIDSIZE-1; i++) {
         for (j = 1; j < GRIDSIZE-1; j++) {
             if(i==1 && j==1){
                continue;
             }
-            int random_num = rand() % 10;
-            // Assign 1 to approximately 20% of the cells
-            if (random_num < 2) {
-                map[i][j] = 1; // obstacle
-            } else {
+            int random_num = rand() % 20;
+           
+            if (random_num > 3) {
                 map[i][j] = 2; // movable path
                 count += 1;
+            } else {
+                map[i][j] = 1; // obstacle
+                
             }
         }
     }
+  
+
+    for (i = 1; i < GRIDSIZE-1; i++) {
+        for (j = 1; j < GRIDSIZE-1; j++) {
+            if (map[i-1][j] == 1 && map[i+1][j] == 1 && map[i][j-1] == 1 && map[i][j+1] == 1) {
+                map[i][j] = 1; // If all neighboring cells contain obstacles, place an obstacle
+            } 
+        }
+     }
 
     srand(time(NULL)); 
     while (num_big_points > 0) {
