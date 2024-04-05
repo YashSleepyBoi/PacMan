@@ -58,7 +58,12 @@ void set_point_map(int map[GRIDSIZE][GRIDSIZE],scoreboard *scoreboard) {
     for (i = 1; i < GRIDSIZE-1; i++) {
         for (j = 1; j < GRIDSIZE-1; j++) {
             if(i==1 && j==1){
+                 map[i][j] = 2;
                continue;
+            }
+            if(i==1){
+                map[i][j] = 2;
+                continue;
             }
             int random_num = rand() % 20;
            
