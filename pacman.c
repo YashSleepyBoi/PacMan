@@ -137,28 +137,37 @@ void print_score_board(scoreboard *scoreboard) {
     printf("IMMUNITY: %d\n", scoreboard->immunity->immuneSteps);
 }
 
-void move_entity(entity *ent, int map[GRIDSIZE][GRIDSIZE], char direction) {
-    int next_x, next_y;
-    next_x = ent->pos_x;
-    next_y = ent->pos_y;
+void move_entity(entity *ent, entity **ghosts, int map[GRIDSIZE][GRIDSIZE], char direction) {
+    int next_x = ent->pos_x;
+    int next_y = ent->pos_y;
+
     switch (direction) {
         case 'w': 
-            next_x--;
+            next_x--; 
             break;
         case 's': 
-            next_x++;
+            next_x++; 
             break;
         case 'a': 
-            next_y--;
+            next_y--; 
             break;
-        case 'd':
-            next_y++;
+        case 'd': 
+            next_y++; 
             break;
     }
 
     if (next_x >= 0 && next_x < GRIDSIZE && next_y >= 0 && next_y < GRIDSIZE && map[next_x][next_y] != 1) {
-        ent->pos_x = next_x;
-        ent->pos_y = next_y;
+        int collision = 0;
+        for (int i = 0; i < NUM_GHOSTS; i++) {
+            if (ghosts[i] != ent && ghosts[i]->pos_x == next_x && ghosts[i]->pos_y == next_y) {
+                collision = 1; 
+                break;
+            }
+        }
+        if (!collision) {
+            ent->pos_x = next_x;
+            ent->pos_y = next_y;
+        }
     }
 }
 
@@ -279,6 +288,43 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
         printf("Game Paused. Press Spacebar to resume...\n");
     } else if (input == 'w' || input == 'a' || input == 's' || input == 'd') {
         move_player(fsm->player, fsm->map, input, fsm->scoreboard);
+    }
+
+    static int count = 0;
+    int ghost_move_interval = 3; 
+    int player_x, player_y, ghost_x, ghost_y, distance_x, distance_y;
+    if (count++ >= ghost_move_interval) {
+        for (i = 0; i < NUM_GHOSTS; i++) {
+            if (fsm->ghosts[i]->is_active) {
+                player_x = fsm->player->pos_x;
+                player_y = fsm->player->pos_y;
+                ghost_x = fsm->ghosts[i]->pos_x;
+                ghost_y = fsm->ghosts[i]->pos_y;
+
+                distance_x = abs(player_x - ghost_x);
+                distance_y = abs(player_y - ghost_y);
+
+                if (distance_x <= 4 && distance_y <= 4) {
+                    if (distance_x > distance_y) {
+                        if (player_x < ghost_x && fsm->map[ghost_x - 1][ghost_y] != 1) {
+                            move_entity(fsm->ghosts[i], fsm->ghosts, fsm->map, 'w'); 
+                        } else if (player_x > ghost_x && fsm->map[ghost_x + 1][ghost_y] != 1) {
+                            move_entity(fsm->ghosts[i], fsm->ghosts, fsm->map, 's'); 
+                        }
+                    }
+                    if (ghost_x == fsm->ghosts[i]->pos_x) { 
+                        if (player_y < ghost_y && fsm->map[ghost_x][ghost_y - 1] != 1) {
+                            move_entity(fsm->ghosts[i], fsm->ghosts, fsm->map, 'a'); 
+                        } else if (player_y > ghost_y && fsm->map[ghost_x][ghost_y + 1] != 1) {
+                            move_entity(fsm->ghosts[i], fsm->ghosts, fsm->map, 'd'); 
+                        }
+                    }
+                } else {
+                    move_entity(fsm->ghosts[i], fsm->ghosts, fsm->map, get_random_direction());
+                }
+            }
+        }
+        count = 0; 
     }
 
     handleCManState(fsm);
@@ -500,7 +546,7 @@ int main() {
 
         if (counter++ >= ghost_move_interval) {
             for (i = 0; i < NUM_GHOSTS; i++) {
-                move_entity(fsm.ghosts[i], fsm.map, get_random_direction());    
+                move_entity(fsm.ghosts[i], fsm.ghosts, fsm.map, get_random_direction());    
             }
             counter = 0;
         }
