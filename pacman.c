@@ -191,7 +191,6 @@ void move_player(entity *player, int map[GRIDSIZE][GRIDSIZE], char direction, sc
                 scoreboard->score++;
                 scoreboard->score++;
                 scoreboard->immunity->immuneSteps += 5;
-                scoreboard->immunity->currentState = POWER_MODE;
             } else if (map[next_x][next_y] == 4) {
                 if (next_x == 2 && next_y == 2) {
                     next_x = 7; next_y = 7; 
@@ -240,11 +239,17 @@ int all_points_eaten(int map[GRIDSIZE][GRIDSIZE]) {
 }
 
 void handleCManState(GameStateFsm *fsm) {
-    if (fsm->scoreboard->immunity->currentState == POWER_MODE && fsm->scoreboard->immunity->immuneSteps == 0) {  
-        fsm->scoreboard->immunity->currentState = NORMAL_MODE;  
-    } else if (fsm->scoreboard->immunity->currentState == NORMAL_MODE && fsm->scoreboard->immunity->immuneSteps < 0){
-        fsm->scoreboard->immunity->immuneSteps = 0;
+    if (fsm->scoreboard->immunity->currentState == NORMAL_MODE) {
+        if (fsm->scoreboard->immunity->immuneSteps < 0) {
+            fsm->scoreboard->immunity->immuneSteps = 0;
+        }
+        else if (fsm->scoreboard->immunity->immuneSteps > 0) {
+            fsm->scoreboard->immunity->currentState = POWER_MODE;
+        }
     }
+    else if (fsm->scoreboard->immunity->currentState == POWER_MODE && fsm->scoreboard->immunity->immuneSteps == 0) {  
+        fsm->scoreboard->immunity->currentState = NORMAL_MODE;  
+    } 
 }
 
 void initGameStateFsm(GameStateFsm *fsm) {
@@ -490,13 +495,13 @@ int main() {
             processGameState(&fsm, input);
         }
 
-        if (fsm.currentGameState == Playing) {
-            system("clear");
-            print_score_board(fsm.scoreboard);
-            print_map(fsm.map, fsm.player, fsm.ghosts);
-        } else if (fsm.currentGameState == GameOver){
-            handleGameOverState(&fsm,input);
-        }
+            if (fsm.currentGameState == Playing) {
+                system("clear");
+                print_score_board(fsm.scoreboard);
+                print_map(fsm.map, fsm.player, fsm.ghosts);
+            } else if (fsm.currentGameState == GameOver){
+                handleGameOverState(&fsm,input);
+            }
 
         if (counter++ >= ghost_move_interval) {
             for (i = 0; i < NUM_GHOSTS; i++) {
