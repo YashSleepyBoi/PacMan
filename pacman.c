@@ -67,7 +67,7 @@ void set_point_map(int map[GRIDSIZE][GRIDSIZE], scoreboard *scoreboard) {
         for (j = 0; j < GRIDSIZE; j++) {
             map[i][j] = 1;
         }
-    }
+    }   
 
     /* Create paths (with tiny cookies) and obstacles in the map */
     for (i = 1; i < GRIDSIZE-1; i++) {
@@ -386,6 +386,7 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
     /* Proceed to next stage */
     if (all_points_eaten(fsm->map)) {
         set_point_map(fsm->map, fsm->scoreboard);
+        set_teleportation_points(fsm->map);
         fsm->player->pos_x = 1;
         fsm->player->pos_y = 1;
         fsm->scoreboard->level++;
