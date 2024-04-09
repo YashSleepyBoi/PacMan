@@ -42,7 +42,7 @@ entity* create_entity(int x, int y) {
     return e;
 }
 
-entity** create_ghosts() {
+entity** create_ghosts(void) {
     int i;
     /* Allocate memory for array of ghost entities */
     entity **ghosts = malloc(NUM_GHOSTS * sizeof(entity*));
@@ -257,7 +257,7 @@ void move_player(entity *player, int map[GRIDSIZE][GRIDSIZE], char direction, sc
 
 }
 
-char get_random_direction() {
+char get_random_direction(void) {
     int randDir = rand() % 4;
 
     switch (randDir) {
@@ -371,6 +371,7 @@ void handlePlayingState(GameStateFsm *fsm, char input) {
     for (i = 0; i < NUM_GHOSTS; i++) {
         /* Check for collision between C-man and ghost, and check if C-man is in POWER_MODE */
         if (check_collision(fsm->player, fsm->ghosts[i])) {
+            
             if (fsm->scoreboard->immunity->currentState == NORMAL_MODE && fsm->ghosts[i]->is_active) {
                 printf("\nGame Over! You've been caught by the ghost!\n");
                 printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
@@ -441,7 +442,7 @@ void sleep_microseconds(long microseconds) {
     nanosleep(&ts, NULL);
 }
 
-void set_noncanonical_mode() {
+void set_noncanonical_mode(void) {
     struct termios term;
     tcgetattr(STDIN_FILENO, &term);
     term.c_lflag &= ~(ICANON | ECHO);
@@ -450,7 +451,7 @@ void set_noncanonical_mode() {
     tcsetattr(STDIN_FILENO, TCSANOW, &term);
 }
 
-void set_canonical_mode() {
+void set_canonical_mode(void) {
     struct termios term;
     tcgetattr(STDIN_FILENO, &term);
     term.c_lflag |= (ICANON | ECHO); 
@@ -482,7 +483,7 @@ void free_ghosts(entity **ghosts) {
     free(ghosts);
 }
 
-int main() {
+int main(void) {
     int i;
     int count = 0;
     static int counter = 0; /* Counter for ghost movement interval */
