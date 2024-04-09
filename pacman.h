@@ -44,3 +44,8 @@ typedef struct {
     int map[GRIDSIZE][GRIDSIZE];
 } GameStateFsm;
 
+
+struct Entry {
+    char username[MAX_NAME_LENGTH];
+    int score;
+};
