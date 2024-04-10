@@ -568,8 +568,11 @@ int main(void) {
             if (check_collision(fsm.player, fsm.ghosts[i])) {
             
                 if (fsm.scoreboard->immunity->currentState == NORMAL_MODE && fsm.ghosts[i]->is_active) {
+                    
                     if (!gameoverprinted){
                         gameoverprinted = 1;
+                        system("clear");
+                        print_map(fsm.map, fsm.player, fsm.ghosts, fsm.scoreboard);
                         printf("\nGame Over! You've been caught by the ghost!\n");
                         printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
                         
