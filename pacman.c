@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 199309L
+
 #include "pacman.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -572,6 +574,7 @@ int main(void) {
                     if (!gameoverprinted){
                         gameoverprinted = 1;
                         system("clear");
+                        print_score_board(fsm.scoreboard);
                         print_map(fsm.map, fsm.player, fsm.ghosts, fsm.scoreboard);
                         printf("\nGame Over! You've been caught by the ghost!\n");
                         printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
