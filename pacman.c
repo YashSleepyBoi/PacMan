@@ -488,6 +488,7 @@ int main(void) {
     int count = 0;
     static int counter = 0; /* Counter for ghost movement interval */
     int ghost_move_interval = 3;
+    int gameoverprinted;
     char input;
     char line[1024];
     char username[50];
@@ -542,6 +543,7 @@ int main(void) {
         /* Read user input */
         if (read(STDIN_FILENO, &input, 1) > 0) {
             processGameState(&fsm, input);
+            gameoverprinted = 0;
         }
 
         /* Display game state */
@@ -560,8 +562,30 @@ int main(void) {
             }
             counter = 0;
         }
+        handleCManState(&fsm);
+        for (i = 0; i < NUM_GHOSTS; i++) {
+        /* Check for collision between C-man and ghost, and check if C-man is in POWER_MODE */
+            if (check_collision(fsm.player, fsm.ghosts[i])) {
+            
+                if (fsm.scoreboard->immunity->currentState == NORMAL_MODE && fsm.ghosts[i]->is_active) {
+                    if (!gameoverprinted){
+                        printf("\nGame Over! You've been caught by the ghost!\n");
+                        printf("Do you want to start over or exit?\nPress 'y' to start over and press 'x' to exit\n");
+                        gameoverprinted = 1;
+                    }
+                    fsm.currentGameState = GameOver;
+                    break;
+                } else {
+                    fsm.ghosts[i]->is_active = 0;
+                    fsm.scoreboard->score += 10;
+                }
+            }
+        }
 
-       sleep_microseconds(100000);
+        if (fsm.currentGameState != GameOver) {
+            sleep_microseconds(100000);
+        }
+       /*sleep_microseconds(100000);*/
     }
 
     set_canonical_mode();
