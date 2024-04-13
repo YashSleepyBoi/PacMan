@@ -102,6 +102,22 @@ void set_point_map(int map[GRIDSIZE][GRIDSIZE], scoreboard *scoreboard) {
             } 
         }
     }
+    for (i = GRIDSIZE-1; i >0; i--) {
+        for (j = GRIDSIZE; j >0; j--) {
+            if (map[i-1][j] == 1 && map[i+1][j] == 1 && map[i][j-1] == 1 && map[i][j+1] == 1) {
+                /* If all neighboring cells contain obstacles, place an obstacle */
+                map[i][j] = 1;
+            } 
+        }
+    }
+    for (i = 1; i < GRIDSIZE-1; i++) {
+        for (j = 1; j < GRIDSIZE-1; j++) {
+            if (map[i-1][j] == 1 && map[i+1][j] == 1 && map[i][j-1] == 1 && map[i][j+1] == 1) {
+                /* If all neighboring cells contain obstacles, place an obstacle */
+                map[i][j] = 1;
+            } 
+        }
+    }
 
     /* Generate big cookies randomly */
     srand(time(NULL)); 
@@ -521,11 +537,8 @@ int main(void) {
     /* Parser*/
    while (fgets(line, sizeof(line), file)) {
         regmatch_t matches[3];
-        printf("Processing line: %s\n", line); 
-        
         if (regexec(&regex, line, 3, matches, 0) == 0) {
             char score_str[10];
-            printf("Match found\n"); 
             strncpy(entries[count].username, line + matches[1].rm_so, matches[1].rm_eo - matches[1].rm_so);
             entries[count].username[matches[1].rm_eo - matches[1].rm_so] = '\0';
             strncpy(score_str, line + matches[2].rm_so, matches[2].rm_eo - matches[2].rm_so);
