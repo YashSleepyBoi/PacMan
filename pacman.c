@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <time.h>
+#include <regex.h>
 
 void initCMan(C_man_FSM *fsm) {
     fsm->currentState = NORMAL_MODE;
@@ -484,6 +485,10 @@ void free_ghosts(entity **ghosts) {
     }
     free(ghosts);
 }
+typedef struct {
+    char username[50];
+    int score;
+} Entry;
 
 int main(void) {
     int i;
@@ -494,10 +499,14 @@ int main(void) {
     char input;
     char line[1024];
     char username[50];
-    char *token; /* for pasing CSV entries */
+  
     FILE *file; /* file pointer for CSV file */
     GameStateFsm fsm;
     struct Entry entries[MAX_ENTRIES];
+  
+
+    regex_t regex;
+    regcomp(&regex, "([^,]+), ([0-9]+)", REG_EXTENDED);
 
     printf("Enter a username:\n");
     scanf("%s", username);
@@ -509,18 +518,30 @@ int main(void) {
         return 1;
     }
 
-    /* Read high score entries from file */
-    while (fgets(line, sizeof(line), file)) {
-        token = strtok(line, ",");
-        strcpy(entries[count].username, token);
-        token = strtok(NULL, ",");
-        entries[count].score = atoi(token);
-        count++;
+    /* Parser*/
+   while (fgets(line, sizeof(line), file)) {
+        regmatch_t matches[3];
+        printf("Processing line: %s\n", line); 
+        
+        if (regexec(&regex, line, 3, matches, 0) == 0) {
+            char score_str[10];
+            printf("Match found\n"); 
+            strncpy(entries[count].username, line + matches[1].rm_so, matches[1].rm_eo - matches[1].rm_so);
+            entries[count].username[matches[1].rm_eo - matches[1].rm_so] = '\0';
+            strncpy(score_str, line + matches[2].rm_so, matches[2].rm_eo - matches[2].rm_so);
+            score_str[matches[2].rm_eo - matches[2].rm_so] = '\0';
+            entries[count].score = atoi(score_str);
+            count++;
+        } else {
+            printf("Error: line format incorrect\n");
+        }
     }
+
+    regfree(&regex);
 
     fclose(file);
 
-    /* Sort the high score entries in descending order */
+    
     bubbleSort(entries, count);
 
     file = fopen("data.csv", "a+");
